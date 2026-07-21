@@ -16,8 +16,17 @@ def lpc(speech, frame_length, frame_skip, order):
     excitation (nframes,frame_length) - linear prediction excitation frames
       (only the last frame_skip samples in each frame need to be valid)
     '''
-    raise RuntimeError("You need to write this part!")
+    nframes = int((len(speech) - frame_length) / frame_skip)
+    frames = np.array([speech[m*frame_skip : m*frame_skip+frame_length] for m in range(nframes)])
+    A = librosa.lpc(frames, order=order)
 
+    excitation = np.zeros((nframes, frame_length))
+    for frame in range(nframes):
+        for samp in range(order, frame_length):
+            for k in range(order+1):
+                excitation[frame, samp] += A[frame, k] * frames[frame, samp-k]
+
+    return A, excitation
 def synthesize(e, A, frame_skip):
     '''
     Synthesize speech from LPC residual and coefficients.
@@ -30,7 +39,14 @@ def synthesize(e, A, frame_skip):
     @returns:
     synthesis (duration) - synthetic speech waveform
     '''
-    raise RuntimeError("You need to write this part!")
+   order = A.shape[1] - 1
+    synthesis = np.zeros(len(e))
+    for n in range(len(e)):
+        frame = int(n / frame_skip)
+        synthesis[n] = e[n]
+        for k in range(1, min(n, order+1)):
+            synthesis[n] -= A[frame, k] * synthesis[n-k]
+    return synthesis
 
 def robot_voice(excitation, T0, frame_skip):
     '''
@@ -45,5 +61,17 @@ def robot_voice(excitation, T0, frame_skip):
     gain (nframes) - gain for each frame
     e_robot (nframes*frame_skip) - excitation for the robot voice
     '''
-    raise RuntimeError("You need to write this part!")
+    nframes = excitation.shape[0]
+    gain = np.sqrt(np.average(np.square(excitation), axis=1))
+
+    length = nframes * frame_skip
+    p = np.zeros(length)
+    p[::T0] = 1
+
+    e_robot = np.zeros(length)
+    for n in range(length):
+        frame = int(n / frame_skip)
+        e_robot[n] = gain[frame] * p[n]
+
+    return gain, e_robot
 
